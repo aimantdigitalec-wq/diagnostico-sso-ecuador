@@ -1,157 +1,263 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
 
 # ==========================================
-# 1. CONFIGURACIÓN VISUAL (ESTILO PRO)
+# 1. CONFIGURACIÓN VISUAL Y CSS
 # ==========================================
 st.set_page_config(
-    page_title="Diagnóstico SSO Ecuador",
+    page_title="Diagnóstico SSO Ecuador 2025",
     page_icon="🛡️",
-    layout="centered", # "centered" se ve mejor en móviles que "wide"
-    initial_sidebar_state="collapsed" # Ocultamos menú para enfocar en la App
+    layout="centered",
+    initial_sidebar_state="expanded"
 )
 
-# Inyectar CSS para mejorar la estética (Botones y Tarjetas)
+# Estilos CSS para Botones y Etiquetas de Riesgo
 st.markdown("""
 <style>
-    .stButton>button {
-        width: 100%;
-        background-color: #004d40;
-        color: white;
-        border-radius: 10px;
-        height: 3em;
-        font-weight: bold;
-    }
-    .stButton>button:hover {
-        background-color: #00695c;
-        border-color: #00695c;
-        color: white;
-    }
-    div[data-testid="stMetricValue"] {
-        font-size: 1.8rem;
-    }
-    .whatsapp-btn {
-        display: inline-block;
-        background-color: #25D366;
-        color: white;
+    /* Estilo para el botón de riesgo (Badge) */
+    .risk-badge {
         padding: 10px 20px;
+        color: white;
+        border-radius: 5px;
+        font-weight: bold;
+        text-align: center;
+        font-size: 1.2rem;
+        display: inline-block;
+        width: 100%;
+    }
+    .risk-bajo { background-color: #28a745; } /* Verde */
+    .risk-medio { background-color: #ffc107; color: black !important; } /* Amarillo */
+    .risk-alto { background-color: #dc3545; } /* Rojo */
+    
+    /* Estilo Botón WhatsApp */
+    .whatsapp-btn {
+        display: block;
+        background-color: #25D366;
+        color: white !important;
+        padding: 15px;
         border-radius: 50px;
         text-decoration: none;
         font-weight: bold;
         text-align: center;
-        width: 100%;
+        font-size: 1.1rem;
         margin-top: 20px;
-        box-shadow: 0px 4px 6px rgba(0,0,0,0.1);
+        box-shadow: 0px 4px 6px rgba(0,0,0,0.2);
     }
-    .whatsapp-btn:hover {
-        background-color: #128C7E;
-        color: white;
-    }
+    .whatsapp-btn:hover { background-color: #128C7E; }
+    
+    /* Ocultar footer de Streamlit */
+    footer {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. LÓGICA (SIMPLIFICADA PARA EL EJEMPLO)
+# 2. BASE DE DATOS CIIU (ANEXO 2 - Extracto Ampliado)
 # ==========================================
-# Simulación de Base de Datos Anexo 2
-actividades_db = {
-    "Tienda de Barrio / Víveres": {"riesgo": "Bajo", "ciiu": "G4711"},
-    "Restaurante / Comida Rápida": {"riesgo": "Medio", "ciiu": "I5610"},
-    "Peluquería / Estética": {"riesgo": "Bajo", "ciiu": "S9602"},
-    "Construcción / Obra Civil": {"riesgo": "Alto", "ciiu": "F4100"},
-    "Taller Mecánico / Automotriz": {"riesgo": "Medio", "ciiu": "G4520"},
-    "Transporte de Carga": {"riesgo": "Medio", "ciiu": "H4923"},
-    "Oficina / Servicios Profesionales": {"riesgo": "Bajo", "ciiu": "M6910"},
-    "Consultorio Médico / Dental": {"riesgo": "Bajo", "ciiu": "Q8620"}
-}
+# Esta lista simula la carga del Anexo 2 completo. 
+# En producción, esto podría venir de un archivo .csv cargado con pd.read_csv()
+lista_ciiu = [
+    {"label": "A0111 - Cultivo de cereales y otros cultivos (Riesgo Bajo)", "riesgo": "Bajo", "codigo": "A0111"},
+    {"label": "C1010 - Procesamiento y conservación de carne (Riesgo Alto)", "riesgo": "Alto", "codigo": "C1010"},
+    {"label": "C1071 - Elaboración de pan y productos de panadería (Riesgo Bajo)", "riesgo": "Bajo", "codigo": "C1071"},
+    {"label": "F4100 - Construcción de edificios (Riesgo Alto)", "riesgo": "Alto", "codigo": "F4100"},
+    {"label": "G4520 - Mantenimiento y reparación de vehículos (Riesgo Medio)", "riesgo": "Medio", "codigo": "G4520"},
+    {"label": "G4711 - Venta al por menor en tiendas/abarrotes (Riesgo Bajo)", "riesgo": "Bajo", "codigo": "G4711"},
+    {"label": "G4771 - Venta al por menor de prendas de vestir (Riesgo Bajo)", "riesgo": "Bajo", "codigo": "G4771"},
+    {"label": "G4773 - Venta de productos farmacéuticos/Farmacias (Riesgo Bajo)", "riesgo": "Bajo", "codigo": "G4773"},
+    {"label": "H4923 - Transporte de carga por carretera (Riesgo Medio)", "riesgo": "Medio", "codigo": "H4923"},
+    {"label": "I5610 - Restaurantes y actividades de servicio de comidas (Riesgo Medio)", "riesgo": "Medio", "codigo": "I5610"},
+    {"label": "J6201 - Actividades de programación informática (Riesgo Bajo)", "riesgo": "Bajo", "codigo": "J6201"},
+    {"label": "K6419 - Intermediación monetaria / Bancos (Riesgo Bajo)", "riesgo": "Bajo", "codigo": "K6419"},
+    {"label": "M6910 - Actividades Jurídicas / Abogados (Riesgo Bajo)", "riesgo": "Bajo", "codigo": "M6910"},
+    {"label": "N8010 - Actividades de seguridad privada (Riesgo Alto)", "riesgo": "Alto", "codigo": "N8010"},
+    {"label": "N8121 - Limpieza general de edificios (Riesgo Bajo)", "riesgo": "Bajo", "codigo": "N8121"},
+    {"label": "Q8620 - Actividades médicas y odontológicas (Riesgo Bajo)", "riesgo": "Bajo", "codigo": "Q8620"},
+    {"label": "S9602 - Peluquería y otros tratamientos de belleza (Riesgo Bajo)", "riesgo": "Bajo", "codigo": "S9602"}
+]
+# Convertimos a DataFrame para fácil manejo
+df_ciiu = pd.DataFrame(lista_ciiu)
 
 # ==========================================
-# 3. INTERFAZ DE USUARIO (FRONTEND)
+# 3. INTERFAZ DE USUARIO (SIDEBAR)
+# ==========================================
+with st.sidebar:
+    st.image("https://cdn-icons-png.flaticon.com/512/6380/6380000.png", width=80)
+    st.title("Datos de la Empresa")
+    
+    # Datos de Contacto (Requerimiento del usuario)
+    nombre_empresa = st.text_input("Nombre Comercial / Razón Social")
+    rep_legal = st.text_input("Nombre Representante Legal")
+    telefono = st.text_input("Número de Teléfono / Celular")
+    email = st.text_input("Correo Electrónico (Opcional)")
+    
+    st.markdown("---")
+    
+    # Datos Técnicos para Clasificación
+    num_trabajadores = st.number_input("Número Total de Trabajadores", min_value=1, value=1, step=1)
+    
+    # Buscador CIIU
+    actividad_seleccionada = st.selectbox(
+        "Busca tu Actividad Económica (CIIU):",
+        options=df_ciiu['label'].tolist(),
+        index=None,
+        placeholder="Escribe para buscar (ej: Construcción, Tienda...)"
+    )
+    
+    btn_calcular = st.button("📊 GENERAR DIAGNÓSTICO", type="primary")
+
+# ==========================================
+# 4. LÓGICA DE CLASIFICACIÓN (MOTOR LEGAL)
 # ==========================================
 
-# --- ENCABEZADO ---
-st.image("https://cdn-icons-png.flaticon.com/512/9563/9563683.png", width=60) # Puedes poner tu logo aquí
-st.title("Diagnóstico Legal SSO")
-st.markdown("Verifica en **30 segundos** si tu empresa cumple con la nueva normativa del Ministerio del Trabajo (2025).")
-st.divider()
-
-# --- PASO 1: DATOS (TARJETA LIMPIA) ---
-with st.container():
-    st.subheader("1. Datos de tu Negocio")
-    col_a, col_b = st.columns(2)
-    with col_a:
-        empresa = st.text_input("Nombre de la Empresa", placeholder="Ej: Comercial Don Pepe")
-    with col_b:
-        trabajadores = st.number_input("Nº Trabajadores", min_value=1, value=3, step=1)
+def obtener_requisitos(trabajadores, riesgo):
+    # Inicializamos las listas
+    admin = []
+    tecnica = []
+    talento = []
+    operativos = []
     
-    actividad = st.selectbox("Actividad Económica Principal", list(actividades_db.keys()))
+    # --- LOGICA SEGÚN ACUERDO 196 y DECRETO 255 ---
     
-    # Botón Principal
-    calcular = st.button("🔍 ANALIZAR MI CUMPLIMIENTO")
-
-# --- PASO 2: RESULTADOS (APARECEN AL DAR CLIC) ---
-if calcular:
-    st.divider()
-    
-    # Lógica de Clasificación
-    datos_actividad = actividades_db[actividad]
-    riesgo = datos_actividad["riesgo"]
-    
-    # Determinar tipo de empresa
+    # 1. RESPONSABLE DE SEGURIDAD (Art. 18 Dec. 255 y Art. 13 AM 196)
     if trabajadores <= 9:
-        tipo_empresa = "Microempresa"
-        obligacion_base = "Plan de Prevención (Interno)"
-        responsable = "Monitor de Seguridad"
-        color_riesgo = "off" if riesgo == "Bajo" else "inverse"
-    else:
-        tipo_empresa = "Pequeña/Mediana"
-        obligacion_base = "Reglamento de Higiene (SUT)"
-        responsable = "Delegado de Seguridad"
-    
-    # Tarjetas de Resumen (Metrics) - Se ven genial en celular
-    st.subheader("2. Tu Perfil de Riesgo")
-    
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Nivel de Riesgo", riesgo, delta="MDT-2025", delta_color=color_riesgo)
-    col2.metric("Clasificación", tipo_empresa)
-    col3.metric("Responsable", responsable)
-    
-    # --- PASO 3: LISTA DE VERIFICACIÓN (ACORDEÓN) ---
-    st.markdown("### 3. ¿Qué documentos te faltan?")
-    st.info(f"Según el Anexo 1, para una empresa de **Riesgo {riesgo}**, necesitas:")
-    
-    # Usamos "expander" para que no ocupe mucho espacio en el celular
-    with st.expander("📂 A. Documentación Legal (Obligatorio)", expanded=True):
-        if trabajadores < 10:
-            st.markdown("✅ **Plan de Prevención de Riesgos:** (No requiere registro SUT, pero sí físico).")
-            st.markdown("✅ **Acta de Designación de Monitor:** Firmada por el Representante Legal.")
+        if riesgo == "Alto":
+             responsable = "Técnico de Seguridad (Visita Periódica)"
+             admin.append("✅ Registro de Técnico de Seguridad (Art. 13 AM 196)")
         else:
-            st.error("❌ **Reglamento de Higiene:** Aprobado y Registrado en SUT.")
-            st.error("❌ **Delegado de Seguridad:** Acta de elección registrada.")
-            
-    with st.expander("🚑 B. Programas y Salud (Obligatorio)"):
-        st.markdown("✅ **Botiquín de Primeros Auxilios:** Acorde al riesgo.")
-        st.markdown("✅ **Protocolo de Prevención de Violencia/Acoso:** Firmado y socializado.")
-        if trabajadores >= 10:
-             st.warning("⚠️ **Programa de Prevención de Drogas:** Implementado.")
-             st.warning("⚠️ **Programa de Riesgo Psicosocial:** Evaluado.")
+             responsable = "Monitor de Seguridad (Trabajador)"
+             admin.append("✅ Registro de Monitor de Seguridad (Art. 8 AM 196)")
+    else: # 10 a 49 (Pequeña)
+         if riesgo == "Alto":
+              responsable = "Técnico de Seguridad (Visita Periódica)"
+              admin.append("✅ Registro de Técnico de Seguridad (Art. 11 AM 196)")
+         else:
+              responsable = "Monitor de Seguridad" # Nota: Para 10-49 bajo/medio el Art 13 pide Monitor.
+              admin.append("✅ Registro de Monitor de Seguridad (Art. 10 AM 196)")
 
-    with st.expander("👷 C. Seguridad Operativa (Lo que revisan)"):
-        st.markdown("✅ **Matriz de Riesgos:** Identificación de peligros.")
-        st.markdown("✅ **Registro de EPPs:** Actas de entrega firmadas.")
-        st.markdown("✅ **Señalización:** Extintores y rutas de evacuación.")
+    # 2. DOCUMENTO BASE (Art. 18 y 19 AM 196)
+    if trabajadores <= 9:
+        doc_base = "Plan de Prevención de Riesgos"
+        # Con la reforma 186 ya no se registra, pero se debe cumplir
+        admin.append("✅ Plan de Prevención de Riesgos (Cumplimiento Art. 6 Reformado)")
+    else:
+        doc_base = "Reglamento de Higiene y Seguridad"
+        admin.append("⚠️ Reglamento de Higiene y Seguridad (Aprobado y Registrado SUT)")
 
-    # --- PASO 4: LLAMADO A LA ACCIÓN (VENTA) ---
-    st.divider()
-    st.success("💡 **Diagnóstico Final:** Si no tienes alguno de estos documentos, estás expuesto a multas de hasta $200 USD por trabajador.")
+    # 3. ORGANISMO PARITARIO (Art. 32 y 33 Dec. 255)
+    if trabajadores >= 10:
+        admin.append("⚠️ Registro de Delegado de Seguridad (Elegido por trabajadores)")
     
-    # Mensaje personalizado para WhatsApp
-    mensaje_ws = f"Hola, hice el diagnóstico en la App. Soy {empresa}, tengo {trabajadores} trabajadores ({actividad}) y me faltan documentos de seguridad. ¿Me ayudas?"
-    link_ws = f"https://wa.me/593987996831?text={mensaje_ws.replace(' ', '%20')}" # CAMBIA TU NÚMERO AQUÍ
+    # 4. PROGRAMAS DE PREVENCIÓN (Art. 19 AM 196)
+    # Para 1-9 no se registran pero se gestionan. Para >10 es obligatorio registro.
+    if trabajadores >= 10:
+        talento.append("⚠️ Programa de Prevención de Riesgos Psicosociales (Registrado)")
+        talento.append("⚠️ Programa de Prevención de Drogas (Registrado)")
+    else:
+        talento.append("✅ Gestión de Riesgos Psicosociales (Implementación Interna)")
+
+    # --- REQUISITOS COMUNES (ANEXO 1 - APLICAN A TODOS) ---
+    
+    # Gestión Administrativa Adicional
+    admin.append("✅ Política de Seguridad y Salud (Socializada)")
+    admin.append("✅ Protocolo de Prevención de Acoso y Violencia (Art. 6 Reformado)")
+    
+    # Gestión Técnica (Anexo 1) [cite: 2616-2691]
+    tecnica.append("✅ Matriz de Identificación de Peligros (GTC45 / INSHT)")
+    tecnica.append("✅ Profesiogramas (Descripción de funciones y riesgos)")
+    tecnica.append("✅ Mapa de Riesgos y Recursos (Gráfico)")
+    if riesgo == "Alto" or riesgo == "Medio":
+        tecnica.append("⚠️ Mediciones de Higiene Industrial (Ruido, Luz, etc.) [Si aplica]")
+    
+    # Gestión Talento Humano (Anexo 1) [cite: 2797-2843]
+    talento.append("✅ Certificados de Aptitud Médica (Fichas Médicas)")
+    talento.append("✅ Registro de Entrega de EPPs (Gratuito)")
+    talento.append("✅ Plan Anual de Capacitación (Ejecutado)")
+    
+    # Procedimientos Operativos (Anexo 1) [cite: 2891-3077]
+    operativos.append("✅ Plan de Emergencias y Contingencia")
+    operativos.append("✅ Informe de Simulacros (Min. 1 al año)")
+    operativos.append("✅ Botiquín de Primeros Auxilios y Extintores")
+    operativos.append("✅ Inspecciones Internas de Seguridad (Checklist)")
+    
+    return responsable, doc_base, admin, tecnica, talento, operativos
+
+# ==========================================
+# 5. DESPLIEGUE DE RESULTADOS
+# ==========================================
+if btn_calcular and actividad_seleccionada:
+    
+    # Recuperar datos de la selección
+    info_actividad = df_ciiu[df_ciiu['label'] == actividad_seleccionada].iloc[0]
+    nivel_riesgo = info_actividad['riesgo']
+    codigo_ciiu = info_actividad['codigo']
+    
+    # Ejecutar motor de lógica
+    resp_legal, doc_legal, l_admin, l_tec, l_talento, l_oper = obtener_requisitos(num_trabajadores, nivel_riesgo)
+    
+    # --- SECCIÓN A: ENCABEZADO DE RESULTADOS ---
+    st.title("Diagnóstico de Cumplimiento Normativo")
+    st.markdown(f"**Empresa:** {nombre_empresa} | **RUC/CIIU:** {codigo_ciiu}")
+    st.markdown("**Normativa Vigente:** Acuerdo Ministerial MDT-2024-196, Decreto Ejecutivo 255 y Reforma MDT-2025-186.")
+    st.divider()
+    
+    # --- SECCIÓN B: SEMÁFORO DE RIESGO ---
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("**Nivel de Riesgo Laboral**")
+        # Lógica de color para el botón
+        clase_css = "risk-bajo"
+        if nivel_riesgo == "Medio": clase_css = "risk-medio"
+        if nivel_riesgo == "Alto": clase_css = "risk-alto"
+        
+        st.markdown(f'<div class="{clase_css}">{nivel_riesgo.upper()}</div>', unsafe_allow_html=True)
+        
+    with col2:
+        st.metric("Tamaño Empresa", f"{'Micro' if num_trabajadores <=9 else 'Pequeña'}")
+    
+    with col3:
+        st.metric("Responsable Técnico", "Monitor" if "Monitor" in resp_legal else "Técnico")
+
+    st.write("")
+    st.info(f"📌 **Responsabilidad Principal:** {resp_legal} y {doc_legal}")
+
+    # --- SECCIÓN C: LISTA DE VERIFICACIÓN (ESTRUCTURA ANEXO 1) ---
+    st.subheader("Lista de Obligaciones (Anexo 1)")
+    
+    with st.expander("1. GESTIÓN ADMINISTRATIVA", expanded=True):
+        for item in l_admin:
+            st.write(item)
+            
+    with st.expander("2. GESTIÓN TÉCNICA"):
+        for item in l_tec:
+            st.write(item)
+            
+    with st.expander("3. GESTIÓN DEL TALENTO HUMANO"):
+        for item in l_talento:
+            st.write(item)
+            
+    with st.expander("4. PROCEDIMIENTOS OPERATIVOS BÁSICOS"):
+        for item in l_oper:
+            st.write(item)
+
+    # --- SECCIÓN D: CIERRE Y VENTA ---
+    st.divider()
+    st.success("💡 **Análisis Final:** El incumplimiento de estos puntos puede generar multas de 3 a 20 SBU (Art. 7 Mandato 8).")
+    
+    # Generar enlace de WhatsApp personalizado con los datos capturados
+    mensaje = f"Hola, soy {rep_legal} de la empresa {nombre_empresa}. Hice el diagnóstico: Tengo {num_trabajadores} trabajadores, Riesgo {nivel_riesgo}. Necesito ayuda para cumplir con: {doc_legal}."
+    telefono_destino = "593987996831" # <--- ¡PON TU NÚMERO AQUÍ!
+    link_wa = f"https://wa.me/{telefono_destino}?text={mensaje.replace(' ', '%20')}"
     
     st.markdown(f"""
-    <a href="{link_ws}" class="whatsapp-btn" target="_blank">
-        🚀 SOLICITAR DOCUMENTOS FALTANTES POR WHATSAPP
+    <a href="{link_wa}" class="whatsapp-btn" target="_blank">
+        📲 SOLICITAR IMPLEMENTACIÓN DE ESTOS REQUISITOS
     </a>
     """, unsafe_allow_html=True)
+
+elif btn_calcular and not actividad_seleccionada:
+    st.error("Por favor, selecciona una Actividad Económica del buscador para continuar.")
+else:
+    st.info("👋 Ingresa los datos de tu empresa en el menú lateral para iniciar el diagnóstico.")
+
+
